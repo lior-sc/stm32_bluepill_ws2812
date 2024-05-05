@@ -33,7 +33,7 @@
 /* USER CODE BEGIN PD */
 #define NEOPIXEL_NUM 16
 #define NEOPIXEL_BUF_SIZE NEOPIXEL_NUM * WS2812_MSG_LENGTH + 2
-#define NPX_TIM_NS_PER_TICK 13.889 /* Each clock tick on timer 1 takes around 11.904 nanoseconds */
+#define NPX_TIM_FREQ_HZ 72e6 /* Each clock tick on timer 1 takes around 11.904 nanoseconds */
 #define NPX_TIM_CHANNEL TIM_CHANNEL_1
 #define NPX_HTIM htim2
 
@@ -57,6 +57,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_TIM2_Init(void);
+void full_led_pulse(WS2812_RGBTypeDef color);
+void circular_rainbow(double rotation_time, int rotations);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -101,31 +103,22 @@ int main(void)
   MX_DMA_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  ws_2812_init(&neopixel, &NPX_HTIM, NEOPIXEL_NUM, NPX_TIM_CHANNEL, NPX_TIM_NS_PER_TICK);
+  ws2812_init(&neopixel, &NPX_HTIM, NPX_TIM_CHANNEL, NPX_TIM_FREQ_HZ, neopixel_dma_buf, NEOPIXEL_BUF_SIZE, NEOPIXEL_NUM);
 
-  WS2812_RGBTypeDef sin_color = {0x00,0x00,0x00};
-  ws2812_reset(&neopixel, neopixel_dma_buf, neopixel_dma_buf_size);
+  WS2812_RGBTypeDef color = {0xFF,0x00,0xFF};
+  ws2812_reset(&neopixel);
 
-
+  circular_rainbow(5,1);
+  ws2812_soft_reset(&neopixel,3);
+  HAL_Delay(1000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	int led_buf[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
-	for(uint8_t i=1; i<255; i+=1){
-		sin_color.r = i;
-		ws2812_set_color_rgb(&neopixel, led_buf, 16, neopixel_dma_buf, NEOPIXEL_BUF_SIZE, sin_color);
-		ws2812_write(&neopixel, neopixel_dma_buf, neopixel_dma_buf_size);
-		HAL_Delay(10);
-	}
-	for(int i=255; i>1; i-=1){
-		sin_color.r = i;
-		ws2812_set_color_rgb(&neopixel, led_buf, 16, neopixel_dma_buf, NEOPIXEL_BUF_SIZE, sin_color);
-		ws2812_write(&neopixel, neopixel_dma_buf, neopixel_dma_buf_size);
-		HAL_Delay(10);
-	}
+
+	full_led_pulse(color);
 
     /* USER CODE END WHILE */
 
@@ -279,6 +272,45 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void full_led_pulse(WS2812_RGBTypeDef color){
+	int led_buf[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+	WS2812_RGBTypeDef color_t = color;
+	for(int i=1; i<100; i+=1){
+		color_t.r = (uint8_t)(((double)i / 100) * (double)color.r);
+		color_t.g = (uint8_t)(((double)i / 100) * (double)color.g);
+		color_t.b = (uint8_t)(((double)i / 100) * (double)color.b);
+
+		ws2812_set_color_rgb(&neopixel, led_buf, 16, color_t);
+		ws2812_write(&neopixel);
+		HAL_Delay(40);
+	}
+	for(int i=100; i>1; i-=1){
+		color_t.r = (uint8_t)(((double)i / 100) * (double)color.r);
+		color_t.g = (uint8_t)(((double)i / 100) * (double)color.g);
+		color_t.b = (uint8_t)(((double)i / 100) * (double)color.b);
+
+		ws2812_set_color_rgb(&neopixel, led_buf, 16, color_t);
+		ws2812_write(&neopixel);
+		HAL_Delay(40);
+	}
+}
+
+void circular_rainbow(double rotation_time, int rotations){
+	int led_buf[16] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+	int led_delta_hue = 360/16;
+	uint32_t delay_period = (uint32_t)(1000 * rotation_time / 360.0);
+	WS2812_HSVTypeDef hsv={0,1,1};
+	for(int j=0; j<rotations; j++){
+		for(int i=1;i<360;i+=1){
+			hsv.h = (double)i;
+			ws2812_set_color_hsv(&neopixel, led_buf, 16, hsv);
+			ws2812_write(&neopixel);
+			HAL_Delay(delay_period);
+		}
+	}
+
+	return;
+}
 
 /* USER CODE END 4 */
 

@@ -14,8 +14,8 @@
 #define MSG_BIT_TIME_ELAPSED_NS				1250
 #define MSG_MAX_TIMING_ERROR_NS				150
 
-HAL_StatusTypeDef ws_2812_init(WS2812_HandleTypeDef *hpxl, TIM_HandleTypeDef *htim, int led_num,
-		uint32_t tim_channel, uint16_t dma_buf[], int dma_buf_size, double timer_freq_hz){
+HAL_StatusTypeDef ws2812_init(WS2812_HandleTypeDef *hpxl, TIM_HandleTypeDef *htim, uint32_t tim_channel, double timer_freq_hz,
+		uint16_t dma_buf[], int dma_buf_size, int led_num){
 
 	double _one_ccr_value = 0;
 	double _zero_ccr_value = 0;
@@ -68,8 +68,7 @@ HAL_StatusTypeDef ws_2812_init(WS2812_HandleTypeDef *hpxl, TIM_HandleTypeDef *ht
  * @param dma_buf[] - this is a pointer to the dma_buffer
  * @param dma_buf_size - this is the size of the DMA buffer
  */
-void ws2812_set_color_rgb(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, uint16_t dma_buf[],
-		int dma_buf_size, WS2812_RGBTypeDef color){
+void ws2812_set_color_rgb(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, WS2812_RGBTypeDef color){
 	uint32_t packet = 0;
 	uint32_t mask = 0;
 	uint32_t state = 0;
@@ -95,39 +94,39 @@ void ws2812_set_color_rgb(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf
 			// set PWM CCR value to DMA buffer
 			if(state == 0){
 				hpxl->dma_buf[dma_index] = hpxl->logical_zero_ccr;
-				dma_buf[dma_index] = hpxl->logical_zero_ccr;
+				hpxl->dma_buf[dma_index] = hpxl->logical_zero_ccr;
 			}
 			else{
-				dma_buf[dma_index] = hpxl->logical_one_ccr;
+				hpxl->dma_buf[dma_index] = hpxl->logical_one_ccr;
 			}
 		}
 	}
 	return;
 }
 
-HAL_StatusTypeDef ws2812_write(WS2812_HandleTypeDef *hpxl, uint16_t dma_buf[], int dma_buf_size){
+HAL_StatusTypeDef ws2812_write(WS2812_HandleTypeDef *hpxl){
 	HAL_StatusTypeDef ret = HAL_ERROR;
 
 	// send data via PWM_DMA functionality
-	dma_buf[0] = 0;
-	dma_buf[dma_buf_size-1] = 0;	// set 0 PWM duty cycle to reset transmission
-	ret = HAL_TIM_PWM_Start_DMA(hpxl->htim, hpxl->tim_channel, (uint32_t *)dma_buf, dma_buf_size);
+	hpxl->dma_buf[0] = 0;
+	hpxl->dma_buf[hpxl->dma_buf_size-1] = 0;	// set 0 PWM duty cycle to reset transmission
+	ret = HAL_TIM_PWM_Start_DMA(hpxl->htim, hpxl->tim_channel, (uint32_t *)hpxl->dma_buf, hpxl->dma_buf_size);
 	HAL_Delay(1);
 	HAL_TIM_PWM_Stop_DMA(hpxl->htim, hpxl->tim_channel);
 
 	return ret;
 }
 
-HAL_StatusTypeDef ws2812_reset(WS2812_HandleTypeDef *hpxl, uint16_t dma_buf[], int dma_buf_size){
+HAL_StatusTypeDef ws2812_reset(WS2812_HandleTypeDef *hpxl){
 	HAL_StatusTypeDef ret = HAL_ERROR;
 
 	// send logical zeros to DMA. this will set an RGB value of 0 to all leds
-	for(int i=0; i<dma_buf_size-1; i++){
-		dma_buf[i] = hpxl->logical_zero_ccr;
+	for(int i=0; i < hpxl->dma_buf_size-1; i++){
+		hpxl->dma_buf[i] = hpxl->logical_zero_ccr;
 	}
 
 	// send dma buffer data to LEDS
-	ret = ws2812_write(hpxl, dma_buf, dma_buf_size);
+	ret = ws2812_write(hpxl);
 
 	return ret;
 
@@ -139,52 +138,73 @@ void ws2812_set_color_hsv(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf
 	double G = 0;
 	double B = 0;
 
-	double C = hsv.v * hsv.s;
-	double X = C * (1- fabs(((hsv.h / 60) % 2)-1));
-	double M = hsv.v - C;
+	double h_prime = hsv.h / 60;
+	double c = hsv.v * hsv.s;
+	double x =  c * (1 - fabs(fmod(h_prime, 2) - 1));
+	double m = hsv.v - c;
 
 	if(hsv.h > 360.0 || hsv.h < 0.0 || hsv.s < 0.0 || hsv.s > 1.0 || hsv.v < 0.0 || hsv.v > 1.0){
 		return;
 	}
 
-	if(hsv.h >= 0 && hsv.h < 60){
-		R = C;
-		G = X;
+	if(h_prime >= 0 && h_prime < 1){
+		R = c;
+		G = x;
 		B = 0;
 	}
-	else if(hsv.h >= 60 && hsv.h < 120){
-		R = X;
-		G = C;
+	else if(h_prime >= 1 && h_prime < 2){
+		R = x;
+		G = c;
 		B = 0;
 	}
-	else if(hsv.h >= 120 && hsv.h < 180){
+	else if(h_prime >= 2 && h_prime < 3){
 		R = 0;
-		G = C;
-		B = X;
+		G = c;
+		B = x;
 	}
-	else if(hsv.h >= 180 && hsv.h < 240){
+	else if(h_prime >= 3 && h_prime < 4){
 		R = 0;
-		G = X;
-		B = C;
+		G = x;
+		B = c;
 	}
-	else if(hsv.h >= 240 && hsv.h < 300){
-		R = X;
+	else if(h_prime >= 4 && h_prime < 5){
+		R = x;
 		G = 0;
-		B = C;
+		B = c;
 	}
-	else if(hsv.h >= 300 && hsv.h < 360){
-		R = C;
+	else if(h_prime >= 5 && h_prime < 6){
+		R = c;
 		G = 0;
-		B = X;
+		B = x;
 	}
 
-	rgb.r = (uint8_t)(255 * (R+M));
-	rgb.g = (uint8_t)(255 * (G+M));
-	rgb.b = (uint8_t)(255 * (B+M));
+	rgb.r = (uint8_t)(255 * (R+m));
+	rgb.g = (uint8_t)(255 * (G+m));
+	rgb.b = (uint8_t)(255 * (B+m));
 
-	ws2812_set_color_rgb(hpxl, led_buf, led_buf_size, color);
+	ws2812_set_color_rgb(hpxl, led_buf, led_buf_size, rgb);
 
 	return;
+}
+
+HAL_StatusTypeDef ws2812_soft_reset(WS2812_HandleTypeDef *hpxl, double time){
+	HAL_StatusTypeDef ret = HAL_ERROR;
+
+	// send logical zeros to DMA. this will set an RGB value of 0 to all leds
+	for(int j=0; j<1000;j++){
+		for(int i=0; i < hpxl->dma_buf_size-1; i++){
+			hpxl->dma_buf[i] = hpxl->dma_buf[i+1];
+		}
+		ret = ws2812_write(hpxl);
+		HAL_Delay((uint32_t)(time/1000));
+
+	}
+
+
+	// send dma buffer data to LEDS
+	ret = ws2812_write(hpxl);
+
+	return ret;
 }
 
 
