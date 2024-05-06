@@ -36,16 +36,22 @@ typedef struct{
 
 }WS2812_HandleTypeDef;
 
+////////////////////////////////////////////
+///////// core functionality
+////////////////////////////////////////////
 HAL_StatusTypeDef ws2812_init(WS2812_HandleTypeDef *hpxl, TIM_HandleTypeDef *htim, uint32_t tim_channel, double timer_freq_hz,
 		uint16_t dma_buf[], int dma_buf_size, int led_num);
-void ws2812_set_color_rgb(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, WS2812_RGBTypeDef color);
 HAL_StatusTypeDef ws2812_write(WS2812_HandleTypeDef *hpxl);
 HAL_StatusTypeDef ws2812_reset(WS2812_HandleTypeDef *hpxl);
-HAL_StatusTypeDef ws2812_soft_reset(WS2812_HandleTypeDef *hpxl, double time);
-
-// not implemented functions
+void ws2812_set_color_rgb(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, WS2812_RGBTypeDef color);
 void ws2812_set_color_hsv(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, WS2812_HSVTypeDef hsv);
 
+////////////////////////////////////////////
+///////// effects
+////////////////////////////////////////////
+void ws2812_soft_start_hsv(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, WS2812_HSVTypeDef hsv,
+		uint32_t set_time_ms);
+void ws2812_rainbow(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, double rotation_time, int rotations);
 
 
 

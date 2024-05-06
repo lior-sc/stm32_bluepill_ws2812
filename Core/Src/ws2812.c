@@ -143,8 +143,11 @@ void ws2812_set_color_hsv(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf
 	double x =  c * (1 - fabs(fmod(h_prime, 2) - 1));
 	double m = hsv.v - c;
 
-	if(hsv.h > 360.0 || hsv.h < 0.0 || hsv.s < 0.0 || hsv.s > 1.0 || hsv.v < 0.0 || hsv.v > 1.0){
-		return;
+	if(hsv.h > 360){
+		hsv.h -=360;
+	}
+	if(hsv.h < 0){
+		hsv.h+=360;
 	}
 
 	if(h_prime >= 0 && h_prime < 1){
@@ -187,24 +190,39 @@ void ws2812_set_color_hsv(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf
 	return;
 }
 
-HAL_StatusTypeDef ws2812_soft_reset(WS2812_HandleTypeDef *hpxl, double time){
-	HAL_StatusTypeDef ret = HAL_ERROR;
+void ws2812_soft_start_hsv(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, WS2812_HSVTypeDef hsv, uint32_t set_time_ms){
+	WS2812_HSVTypeDef _hsv;
+	uint32_t _loop_iterations = 1000;
+	uint32_t _delay_time = set_time_ms / _loop_iterations;
 
-	// send logical zeros to DMA. this will set an RGB value of 0 to all leds
-	for(int j=0; j<1000;j++){
-		for(int i=0; i < hpxl->dma_buf_size-1; i++){
-			hpxl->dma_buf[i] = hpxl->dma_buf[i+1];
-		}
-		ret = ws2812_write(hpxl);
-		HAL_Delay((uint32_t)(time/1000));
-
+	for(int i=1; i<=_loop_iterations; i+=1){
+		_hsv.v = (((double)i / (double)_loop_iterations) * hsv.v);
+		ws2812_set_color_hsv(hpxl, led_buf, led_buf_size, _hsv);
+		ws2812_write(hpxl);
+		HAL_Delay(_delay_time);
 	}
-
-
-	// send dma buffer data to LEDS
-	ret = ws2812_write(hpxl);
-
-	return ret;
+	return;
 }
 
+void ws2812_rainbow(WS2812_HandleTypeDef *hpxl, int led_buf[], int led_buf_size, double rotation_time, int rotations){
+	uint32_t delay_period = (uint32_t)(1000 * rotation_time / 360.0);
+	WS2812_HSVTypeDef hsv={0,1,1};
+
+	for(int j=0; j<rotations; j++){
+		for(int i=1;i<360;i+=1){
+			hsv.h = (double)i;
+			ws2812_set_color_hsv(hpxl, led_buf, led_buf_size, hsv);
+			ws2812_write(hpxl);
+			HAL_Delay(delay_period);
+		}
+	}
+	for(int i=100;i>=0;i--){
+		hsv.v -= 0.01;
+		ws2812_set_color_hsv(hpxl, led_buf, led_buf_size, hsv);
+		ws2812_write(hpxl);
+		HAL_Delay(delay_period);
+	}
+
+	return;
+}
 
